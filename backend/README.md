@@ -2,7 +2,8 @@
 
 API REST del proyecto MARS OPS, construida con **FastAPI**, Uvicorn, Pydantic y
 HTTPX. Expone el endpoint de salud, un catálogo de fuentes, capas y ubicaciones
-de Marte, y metadatos WMTS verificados para los mosaicos de Jezero Crater.
+de Marte, metadatos WMTS verificados para los mosaicos de Jezero Crater y una
+API de análisis eólico que reutiliza el paquete independiente `mars_ml`.
 
 La documentación completa del proyecto está en [`../README.md`](../README.md) y
 la procedencia de datos en [`../docs/data_sources.md`](../docs/data_sources.md).
@@ -18,6 +19,13 @@ la procedencia de datos en [`../docs/data_sources.md`](../docs/data_sources.md).
   tiles PNG directamente a `trek.nasa.gov`.
 - Los metadatos científicos opcionales no confirmados se devuelven como `null`;
   el catálogo no inventa mediciones, fechas de adquisición ni bounding boxes.
+- `GET /api/v1/aeolian/datasets` expone los cinco manifiestos de Marte de
+  `mars_ml`. Todos son solo metadatos (`has_pixels=false`).
+- `POST /api/v1/aeolian/analyze` ejecuta el análisis histórico observado con
+  `mars_ml` sobre imágenes y máscaras locales indicadas por el cliente. No
+  descarga productos ni inventa escalas, fechas o desplazamientos.
+- `POST /api/v1/aeolian/predict` devuelve `501 not_implemented`: no existe un
+  checkpoint, informe de entrenamiento ni validación independiente registrados.
 
 ## Estructura
 
@@ -49,11 +57,12 @@ backend/
 
 ## Instalación
 
-El repositorio incluye el entorno virtual en `backend/venv` (Python 3.14).
+El repositorio incluye el entorno virtual en `backend/.venv` (Python 3.14).
 
 ```bash
 cd backend
-venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install --no-deps -e ../mars_ml
 cp .env.example .env
 ```
 
@@ -61,7 +70,7 @@ cp .env.example .env
 
 ```bash
 cd backend
-venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 La API queda disponible en `http://127.0.0.1:8000`.
@@ -83,6 +92,10 @@ Documentación interactiva:
 | GET    | `/api/v1/mars/layers/{layer_id}/capabilities` | Snapshot WMTS verificado     |
 | GET    | `/api/v1/mars/layers/{layer_id}/capabilities?live=true` | GetCapabilities en vivo |
 | GET    | `/api/v1/mars/locations/jezero`    | Metadatos de referencia de Jezero Crater |
+| GET    | `/api/v1/aeolian/datasets`         | Manifiestos eólicos de Marte de `mars_ml` |
+| POST   | `/api/v1/aeolian/analyze`          | Análisis observado entre dos observaciones |
+| GET    | `/api/v1/aeolian/results/{analysis_id}` | Resultado de análisis en memoria     |
+| POST   | `/api/v1/aeolian/predict`          | Predicción (no disponible: `501`)       |
 
 ### Salud
 
@@ -139,6 +152,57 @@ Error estandarizado para una capa inexistente:
 }
 ```
 
+### Análisis eólico
+
+`POST /api/v1/aeolian/analyze` recibe dos o más observaciones locales con fechas
+UTC, rutas relativas a `AEOLIAN_DATA_ROOT`, CRS y una escala métrica explícita.
+El servicio valida rutas, CRS y escala, ejecuta `run_mars_sequence` de `mars_ml`
+y devuelve desplazamiento observado, calidad de registro, migración observada,
+unidades y procedencia (incluido SHA-256 cuando está disponible).
+
+```json
+{
+  "dataset_id": "ctx_multitemporal_six_sites",
+  "observations": [
+    {
+      "observation_id": "early",
+      "product_id": "B21_017762_1891_XN_09N292W",
+      "acquisition_datetime_utc": "2012-01-01T00:00:00Z",
+      "image_path": "nili_early.tif",
+      "mask_path": "nili_early_mask.tif",
+      "crs": "IAU2000:49900"
+    },
+    {
+      "observation_id": "late",
+      "product_id": "B22_018039_1890_XN_09N292W",
+      "acquisition_datetime_utc": "2013-01-01T00:00:00Z",
+      "image_path": "nili_late.tif",
+      "mask_path": "nili_late_mask.tif",
+      "crs": "IAU2000:49900"
+    }
+  ],
+  "meters_per_pixel": {
+    "x_m_per_pixel": 6.0,
+    "source": "CTX orthoimage 6 m/pixel declarado por el producto"
+  },
+  "method": "centroid"
+}
+```
+
+Reglas científicas aplicadas:
+
+- `dx_m`/`dy_m` conservan la convención de `mars_ml`: `dx` hacia el este, `dy`
+  hacia el norte, azimut horario desde el norte.
+- `rate_m_per_earth_year` solo se calcula con fechas UTC y escala métrica
+  explícita. Si falta la escala, la tasa queda en `null` y se conserva el motivo.
+- La tasa observada y las predicciones son campos separados. El endpoint de
+  predicción no genera valores y responde `501 not_implemented`.
+- Los resultados viven en memoria del proceso; no hay persistencia.
+- No se incluyen píxeles, etiquetas ni checkpoints en el repositorio.
+- El registro y la segmentación son líneas base clásicas de `mars_ml`, no
+  validación científica independiente.
+
+
 ## Configuración
 
 La configuración se carga desde `backend/.env` y variables de entorno del
@@ -151,20 +215,25 @@ proceso.
 | `API_V1_PREFIX`               | `/api/v1`                                            | Prefijo de los endpoints versionados |
 | `CORS_ORIGINS`                | `http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173` | Orígenes permitidos, separados por `,` |
 | `NASA_REQUEST_TIMEOUT_SECONDS`| `20`                                                 | Timeout de consultas a Mars Trek     |
+| `AEOLIAN_DATA_ROOT`           | `../mars_ml/datasets/mars`                           | Raíz de imágenes y máscaras locales  |
 
 CORS permite por defecto el frontend de Vite (desarrollo y preview) tanto en
 `localhost` como en `127.0.0.1`.
 
 ## Tests
 
-Los 27 tests usan `TestClient` y fixtures locales; no dependen de servicios NASA
+Los 47 tests usan `TestClient` y fixtures locales; no dependen de servicios NASA
 ni de red. El parser WMTS se prueba con un documento GetCapabilities reducido y
-el snapshot verificado se valida sin consultar Mars Trek.
+el snapshot verificado se valida sin consultar Mars Trek. Los 20 tests eólicos
+usan pares sintéticos de `mars_ml` y cubren validación de entradas, integración
+con `run_mars_sequence`, unidades, procedencia SHA-256, rutas simbólicas,
+errores de configuración, CRS y escala incompatibles, máscaras inválidas,
+secuencias de tres observaciones y la respuesta `501` de predicción.
 
 ```bash
 cd backend
-venv/bin/python -m pytest -q
-venv/bin/python -m compileall app tests
+.venv/bin/python -m pytest -q
+.venv/bin/python -m compileall app tests
 ```
 
 ## Migración desde Flask

@@ -21,6 +21,7 @@ _ERROR_CODES = {
     405: "method_not_allowed",
     422: "validation_error",
     500: "internal_error",
+    501: "not_implemented",
     502: "upstream_unavailable",
 }
 
@@ -61,7 +62,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "OPTIONS"],
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
 

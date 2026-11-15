@@ -26,6 +26,9 @@ class Settings(BaseModel):
     api_v1_prefix: str = "/api/v1"
     cors_origins: list[str] = Field(default_factory=list)
     nasa_request_timeout_seconds: float = Field(default=20.0, gt=0)
+    aeolian_data_root: Path = Field(
+        default_factory=lambda: BASE_DIR.parent / "mars_ml" / "datasets" / "mars"
+    )
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -40,6 +43,12 @@ class Settings(BaseModel):
             nasa_request_timeout_seconds=float(
                 os.getenv("NASA_REQUEST_TIMEOUT_SECONDS", "20")
             ),
+            aeolian_data_root=Path(
+                os.getenv(
+                    "AEOLIAN_DATA_ROOT",
+                    str(BASE_DIR.parent / "mars_ml" / "datasets" / "mars"),
+                )
+            ).expanduser(),
         )
 
 
