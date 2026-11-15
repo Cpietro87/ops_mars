@@ -1,24 +1,72 @@
-import { Activity, AlertTriangle, Map, Target, TrendingUp } from 'lucide-react'
+import { useState } from 'react'
+import { Activity, Map, Target, TrendingUp } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import SimulationNotice from '../components/SimulationNotice.jsx'
-import ExplorationPanel from '../components/dashboard/ExplorationPanel.jsx'
-import MissionActivityPanel from '../components/dashboard/MissionActivityPanel.jsx'
-import MissionProgressPanel from '../components/dashboard/MissionProgressPanel.jsx'
+import TimeFilters from '../components/telemetry/TimeFilters.jsx'
+import MissionStatus from '../components/dashboard/MissionStatus.jsx'
+import EnvironmentalTelemetry from '../components/dashboard/EnvironmentalTelemetry.jsx'
+import RoverTelemetry from '../components/dashboard/RoverTelemetry.jsx'
 import ScientificTargetsPanel from '../components/dashboard/ScientificTargetsPanel.jsx'
 import StatCard from '../components/dashboard/StatCard.jsx'
-import SurfaceExplorationPanel from '../components/dashboard/SurfaceExplorationPanel.jsx'
-import TelemetryPanel from '../components/dashboard/TelemetryPanel.jsx'
-import { overviewMetrics } from '../services/missionData.js'
+import TelemetryMetricsSelector from '../components/telemetry/TelemetryMetricsSelector.jsx'
+import SimulationNotice from '../components/SimulationNotice.jsx'
+
+import { useMarsClock } from '../hooks/useMarsClock'
 
 const OVERVIEW_ICONS = {
   status: Activity,
   area: Map,
   targets: Target,
-  risk: AlertTriangle,
+  risk: TrendingUp,
   progress: TrendingUp,
 }
 
+function MissionClock({ landingDate }) {
+  const { sol, lmst, terrestrialEquivalent, landingDate: ld } = useMarsClock(landingDate)
+
+  const formatLMST = (hours) => {
+    const h = Math.floor(hours)
+    const m = Math.floor((hours - h) * 60)
+    return `${h.toString().padStart(2, '0')}:${m
+      .toString()
+      .padStart(2, '0')}`
+  }
+
+  return (
+    <div className="mission-clock">
+      <div className="clock-row">
+        <span className="clock-label">Sol</span>
+        <strong className="clock-value">{sol}</strong>
+        <span className="clock-meta">· Landing: {ld.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })}</span>
+      </div>
+      <div className="clock-row">
+        <span className="clock-label">LMST</span>
+        <strong className="clock-value">{formatLMST(lmst)}</strong>
+        <span className="clock-meta">Mean Solar Time · Jezero Crater</span>
+      </div>
+      <div className="clock-row">
+        <span className="clock-label">Earth date</span>
+        <strong className="clock-value">{terrestrialEquivalent.toLocaleDateString(
+          'en-US',
+        )}</strong>
+        <span className="clock-meta">· {terrestrialEquivalent.toLocaleTimeString(
+          'en-US',
+        )}</span>
+      </div>
+    </div>
+  )
+}
+
 export default function MissionOverview() {
+  const landingDate = new Date('2021-02-18')
+  const { sol, mtc } = useMarsClock(landingDate)
+  const [visibleMetrics, setVisibleMetrics] = useState(['temperature', 'battery'])
+
+  const [selectedPeriod, setSelectedPeriod] = useState('24h')
+
   return (
     <div className="page">
       <div className="page-heading">
@@ -36,29 +84,51 @@ export default function MissionOverview() {
         <span className="page-heading__phase">PHASE · PRE-MISSION</span>
       </div>
 
+      <TimeFilters
+        onSelect={(period) => setSelectedPeriod(period)}
+        selectedPeriod={selectedPeriod}
+      />
+
       <SimulationNotice />
 
+      <MissionClock landingDate={landingDate} />
+
       <section className="stat-grid" aria-label="Mission summary metrics">
-        {overviewMetrics.map((metric) => (
+        {['status', 'area', 'targets', 'risk', 'progress'].map((metric) => (
           <StatCard
-            key={metric.id}
-            icon={OVERVIEW_ICONS[metric.id]}
-            label={metric.label}
-            value={metric.value}
-            meta={metric.meta}
-            tone={metric.tone}
+            key={metric}
+            icon={OVERVIEW_ICONS[metric]}
+            label={metric}
+            value={metric === 'status' ? 'Online' : metric === 'area' ? 'Jezero Crater' : metric === 'targets' ? '8' : metric === 'risk' ? 'Moderate' : '42%'}
+            meta={metric === 'progress' ? 'Planning phase · simulated' : 'Simulated operations profile'}
+            tone={metric === 'risk' ? 'warning' : 'accent'}
           />
         ))}
+
+        <StatCard
+          id="sol"
+          icon={Activity}
+          label="Current Sol"
+          value={sol}
+          meta={mtc > 0 ? `LMST ${mtc.toFixed(1)}h` : 'Mars time'}
+          tone="accent"
+        />
       </section>
 
-      <SurfaceExplorationPanel />
+      <MissionStatus />
 
-      <div className="dashboard-grid dashboard-grid--primary">
-        <ExplorationPanel />
-        <MissionProgressPanel />
-      </div>
+      <TelemetryMetricsSelector
+        visibleMetrics={visibleMetrics}
+        onToggleMetric={(metric) => setVisibleMetrics(
+          visibleMetrics.includes(metric)
+            ? visibleMetrics.filter((m) => m !== metric)
+            : [...visibleMetrics, metric]
+        )}
+      />
 
-      <TelemetryPanel />
+      <EnvironmentalTelemetry visibleMetrics={visibleMetrics} />
+
+      <RoverTelemetry visibleMetrics={visibleMetrics} />
 
       <div className="dashboard-grid dashboard-grid--secondary">
         <ScientificTargetsPanel
@@ -69,7 +139,6 @@ export default function MissionOverview() {
             </Link>
           }
         />
-        <MissionActivityPanel />
       </div>
     </div>
   )

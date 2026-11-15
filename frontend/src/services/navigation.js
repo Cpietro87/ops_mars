@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Mountain,
   Route,
+  Wind,
 } from 'lucide-react'
 
 export const NAV_ITEMS = [
@@ -44,6 +45,12 @@ export const NAV_ITEMS = [
     label: 'AI Systems',
     description: 'Planned analysis and planning modules.',
     icon: BrainCircuit,
+  },
+  {
+    path: '/aeolian',
+    label: 'Aeolian Dynamics',
+    description: 'Real Mars dataset metadata and observed dune migration.',
+    icon: Wind,
   },
 ]
 

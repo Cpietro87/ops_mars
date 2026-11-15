@@ -1,8 +1,12 @@
+import re
+
 import pytest
 
 from app.services.mars_wmts import (
     CTX_JEZERO_ID,
+    CTX_JEZERO_PRELIM_ID,
     HIRISE_JEZERO_ID,
+    MOLA_GLOBAL_ID,
     WMTSParseError,
     build_verified_capabilities,
     parse_wmts_capabilities,
@@ -114,6 +118,51 @@ def test_verified_snapshot_uses_distinct_zoom_ranges() -> None:
     assert hirise.tile_matrix_set == ctx.tile_matrix_set == "default028mm"
     assert hirise.tile_matrices[0].resolution_degrees == pytest.approx(
         ctx.tile_matrices[0].resolution_degrees
+    )
+
+
+def test_verified_mola_snapshot_uses_jpeg_tiles() -> None:
+    mola = build_verified_capabilities(MOLA_GLOBAL_ID)
+
+    assert mola is not None
+    assert mola.format == "image/jpeg"
+    assert mola.resource_url_template.endswith(".jpg")
+    assert len(mola.tile_matrices) == 8
+    assert mola.tile_matrices[-1].id == "7"
+
+
+def test_verified_preliminary_ctx_zoom_range() -> None:
+    prelim = build_verified_capabilities(CTX_JEZERO_PRELIM_ID)
+
+    assert prelim is not None
+    assert prelim.format == "image/png"
+    assert len(prelim.tile_matrices) == 13
+    assert prelim.tile_matrices[-1].id == "12"
+
+
+def test_parse_jpeg_without_resource_url_uses_jpg_template() -> None:
+    xml = MINIMAL_CAPABILITIES.replace(
+        "<Format>image/png</Format>", "<Format>image/jpeg</Format>"
+    )
+    xml = re.sub(r"\s*<ResourceURL[^>]*/>", "", xml)
+
+    capabilities = parse_wmts_capabilities(xml)
+
+    assert capabilities.format == "image/jpeg"
+    assert capabilities.resource_url_template.endswith(".jpg")
+
+
+def test_parse_normalizes_double_slash_resource_template() -> None:
+    xml = MINIMAL_CAPABILITIES.replace(
+        "https://example.test/tiles/DEMO/1.0.0/{Style}",
+        "https://example.test/tiles/DEMO/1.0.0//{Style}",
+    )
+
+    capabilities = parse_wmts_capabilities(xml)
+
+    assert capabilities.resource_url_template == (
+        "https://example.test/tiles/DEMO/1.0.0/"
+        "{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png"
     )
 
 

@@ -54,9 +54,9 @@ export default function DataAttribution({ layer }) {
       </ul>
 
       <p className="map-note">
-        Mission telemetry, progress, risks, and events shown elsewhere in this
-        dashboard are simulated. Only the orbital map layers and the metadata
-        fetched from the backend describe real NASA products.
+        Mission telemetry, progress, risks, events, and route overlays shown in
+        this dashboard are simulated. Only the orbital map layers and the
+        metadata fetched from the backend describe real NASA products.
       </p>
     </section>
   )

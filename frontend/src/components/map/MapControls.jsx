@@ -1,6 +1,10 @@
 import { Maximize2, Minus, Plus } from 'lucide-react'
 
-export default function MapControls({ mapRef, disabled = false }) {
+export default function MapControls({
+  mapRef,
+  disabled = false,
+  fitLabel = 'Fit to published footprint',
+}) {
   return (
     <div className="map-controls" role="group" aria-label="Map controls">
       <button
@@ -26,8 +30,8 @@ export default function MapControls({ mapRef, disabled = false }) {
       <button
         type="button"
         className="map-control"
-        aria-label="Fit to published footprint"
-        title="Fit to published footprint"
+        aria-label={fitLabel}
+        title={fitLabel}
         onClick={() => mapRef.current?.fitToLayer()}
         disabled={disabled}
       >

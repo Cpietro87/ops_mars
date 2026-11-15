@@ -1,4 +1,4 @@
-export default function Panel({
+const Panel = function({
   title,
   eyebrow,
   icon: Icon,
@@ -26,3 +26,6 @@ export default function Panel({
     </section>
   )
 }
+
+export default Panel
+export { Panel }

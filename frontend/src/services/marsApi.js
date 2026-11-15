@@ -13,12 +13,20 @@ export class MarsApiError extends Error {
   }
 }
 
-async function request(path, { signal } = {}) {
+async function request(path, { signal, method = 'GET', body } = {}) {
+  const headers = { Accept: 'application/json' }
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+
   let response
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { Accept: 'application/json' },
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal,
     })
   } catch (error) {
@@ -69,4 +77,23 @@ export function fetchMarsLayerCapabilities(
 
 export function fetchJezeroLocation({ signal } = {}) {
   return request('/api/v1/mars/locations/jezero', { signal })
+}
+
+export function fetchAeolianDatasets({ signal } = {}) {
+  return request('/api/v1/aeolian/datasets', { signal })
+}
+
+export function analyzeAeolian(payload, { signal } = {}) {
+  return request('/api/v1/aeolian/analyze', {
+    method: 'POST',
+    body: payload,
+    signal,
+  })
+}
+
+export function fetchAeolianResult(analysisId, { signal } = {}) {
+  return request(
+    `/api/v1/aeolian/results/${encodeURIComponent(analysisId)}`,
+    { signal },
+  )
 }

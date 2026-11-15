@@ -8,12 +8,13 @@ mediciones, proyecciones, fechas de adquisición ni bounding boxes.
 
 | Elemento | Estado | Naturaleza |
 | -------- | ------ | ---------- |
-| Mapa de Jezero Crater | Integrado | WMTS real de NASA Mars Trek |
-| Mosaicos HiRISE y CTX de Jezero | Verificados | Productos orbitales reales |
+| Mapa orbital de Marte y Jezero | Integrado | WMTS real de NASA Mars Trek |
+| Mosaicos HiRISE, CTX, MOLA y CTX preliminar | Verificados | Productos orbitales reales |
 | Catálogo de capas y fuentes | Integrado | Metadatos estáticos referenciados |
 | Telemetría, riesgos, eventos y objetivos | Simulado | Datos de demostración del dashboard |
+| Ruta del Route Planner | Simulado | Superposición gráfica sobre el mapa real |
 | MEDA | Solo catálogo | Mediciones in-situ, no un mapa |
-| MOLA, THEMIS y CRISM | Solo catálogo | Referencias, sin visualización integrada |
+| THEMIS y CRISM | Solo catálogo | Referencias, sin visualización integrada |
 
 El backend no descarga mosaicos ni productos científicos. El navegador solicita
 los tiles directamente a NASA Mars Trek; el backend solo entrega metadatos del
@@ -27,9 +28,10 @@ catálogo y de WMTS.
 - Endpoint base de tiles: `https://trek.nasa.gov/tiles/Mars/EQ/<layer_id>`
 - Capacidades: `https://trek.nasa.gov/tiles/Mars/EQ/<layer_id>/1.0.0/WMTSCapabilities.xml`
 - Plantilla de tile:
-  `https://trek.nasa.gov/tiles/Mars/EQ/<layer_id>/1.0.0/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png`
+  `https://trek.nasa.gov/tiles/Mars/EQ/<layer_id>/1.0.0/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.<ext>`
 - Estilo: `default`
-- Formato: `image/png`
+- Formato: `image/png` en HiRISE, CTX y CTX preliminar; `image/jpeg` en MOLA.
+  La extensión del tile se deriva del formato de cada capa.
 - TileMatrixSet: `default028mm`
 - CRS publicado: `urn:ogc:def:crs:EPSG::104905`
 - Código de proyección usado por el frontend: `IAU2000:104905`
@@ -72,10 +74,34 @@ endpoint `?live=true` permite volver a consultar Mars Trek bajo demanda.
 - Atribución: NASA/JPL-Caltech/MSSS · USGS Astrogeology Science Center · NASA
   Mars Trek
 
-Ambas capas comparten el nombre de TileMatrixSet (`default028mm`) pero **no** el
-mismo rango de zoom. El frontend construye la rejilla a partir de las matrices
-devueltas por el backend y no asume que HiRISE y CTX tengan la misma resolución
-máxima.
+### MGS MOLA Color Shade, Global
+
+- `layer_id`: `Mars_MGS_MOLA_ClrShade_merge_global_463m`
+- Instrumento: MOLA (Mars Global Surveyor)
+- Resolución nominal: 463 m/pixel
+- Región: Marte global
+- Bounding box: `[-180.0, -89.9991635, 179.9983271, 90.0]`
+- TileMatrix disponibles: `0` a `7`
+- Formato de tile: `image/jpeg`
+- Producto: mosaico global de relieve coloreado derivado de topografía MOLA.
+- Atribución: NASA/MOLA Science Team · NASA Mars Trek
+
+### MRO CTX, Jezero Preliminary Mosaic
+
+- `layer_id`: `Jezero_CTX_BlockAdj_dd`
+- Instrumento: CTX (Mars Reconnaissance Orbiter)
+- Resolución nominal: no publicada en GetCapabilities
+- Región: región de Jezero, Marte
+- Bounding box: `[75.1537692, 15.9058484, 78.8717121, 19.4453003]`
+- TileMatrix disponibles: `0` a `12`
+- Producto: mosaico CTX preliminar con ajuste por bloques; no es el producto
+  controlado del Lander Vision System.
+- Atribución: NASA/JPL-Caltech/MSSS · NASA Mars Trek
+
+Las cuatro capas comparten el nombre de TileMatrixSet (`default028mm`) pero
+**no** el mismo rango de zoom ni el mismo formato. El frontend construye la
+rejilla a partir de las matrices devueltas por el backend y no asume que las
+capas tengan la misma resolución máxima.
 
 ## Fechas y limitaciones
 
@@ -103,7 +129,8 @@ máxima.
 
 Estas capas son referencias de catálogo; no se visualizan en el mapa:
 
-- **MOLA Elevation** (Mars Global Surveyor): topografía global.
+- **MOLA Elevation** (Mars Global Surveyor): referencia de topografía global;
+  para el mapa se usa el producto MOLA Color Shade verificado de Mars Trek.
   <https://pds-geosciences.wustl.edu/missions/mgs/mola.html>
 - **THEMIS Thermal Infrared** (Mars Odyssey): infrarrojo térmico.
   <https://mars.asu.edu/data/>
@@ -129,7 +156,9 @@ de servicios externos.
 
 ## Datos simulados
 
-La telemetría, el progreso, los riesgos, los objetivos científicos y los eventos
-del dashboard provienen de `frontend/src/services/missionData.js` y son datos de
-demostración. No representan una misión humana activa ni mediciones reales. El
-mapa orbital y los metadatos NASA son la única parte real de esta etapa.
+La telemetría, el progreso, los riesgos, los objetivos científicos, los eventos
+del dashboard y los waypoints del Route Planner provienen de
+`frontend/src/services/missionData.js` y son datos de demostración. La ruta se
+superpone al mapa NASA para visualización; no se edita, no se analiza el terreno
+y no representa una ruta operacional. El mapa orbital y los metadatos NASA son
+la única parte real de esta etapa.

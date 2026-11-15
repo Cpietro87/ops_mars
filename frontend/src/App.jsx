@@ -7,6 +7,7 @@ import NotFound from './pages/NotFound.jsx'
 import RoutePlanner from './pages/RoutePlanner.jsx'
 import ScientificTargets from './pages/ScientificTargets.jsx'
 import TerrainAnalysis from './pages/TerrainAnalysis.jsx'
+import KanbanBoard from './components/kanban/KanbanBoard.jsx'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="routes" element={<RoutePlanner />} />
           <Route path="targets" element={<ScientificTargets />} />
           <Route path="ai" element={<AISystems />} />
+          <Route path="kanban" element={<KanbanBoard />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

@@ -7,6 +7,8 @@ HIRISE_JEZERO_ID = (
     "JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd"
 )
 CTX_JEZERO_ID = "JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0"
+MOLA_GLOBAL_ID = "Mars_MGS_MOLA_ClrShade_merge_global_463m"
+CTX_JEZERO_PRELIM_ID = "Jezero_CTX_BlockAdj_dd"
 
 MARS_EQUIRECTANGULAR_CRS = "urn:ogc:def:crs:EPSG::104905"
 MARS_PROJECTION_CODE = "IAU2000:104905"
@@ -42,10 +44,15 @@ class WMTSLayerConfig:
         return f"{self.endpoint}/1.0.0/WMTSCapabilities.xml"
 
     @property
+    def resource_extension(self) -> str:
+        return "jpg" if self.format == "image/jpeg" else "png"
+
+    @property
     def resource_url_template(self) -> str:
         return (
             f"{self.endpoint}/1.0.0/{{Style}}/{{TileMatrixSet}}/"
-            "{TileMatrix}/{TileRow}/{TileCol}.png"
+            f"{{TileMatrix}}/{{TileRow}}/{{TileCol}}."
+            f"{self.resource_extension}"
         )
 
 
@@ -71,6 +78,7 @@ def _config(
     layer_identifier: str,
     max_tile_matrix: int,
     notes: str,
+    data_format: str = "image/png",
 ) -> WMTSLayerConfig:
     return WMTSLayerConfig(
         layer_identifier=layer_identifier,
@@ -78,7 +86,7 @@ def _config(
             "https://trek.nasa.gov/tiles/Mars/EQ/" + layer_identifier
         ),
         style="default",
-        format="image/png",
+        format=data_format,
         tile_matrix_set=DEFAULT_TILE_MATRIX_SET,
         supported_crs=MARS_EQUIRECTANGULAR_CRS,
         max_tile_matrix=max_tile_matrix,
@@ -104,6 +112,27 @@ WMTS_LAYER_CONFIGS: dict[str, WMTSLayerConfig] = {
             f"{WMTS_VERIFIED_AT}. TileMatrix identifiers 0-13 are advertised "
             "for this product; the TileMatrixSet name matches HiRISE but the "
             "zoom range does not."
+        ),
+    ),
+    MOLA_GLOBAL_ID: _config(
+        layer_identifier=MOLA_GLOBAL_ID,
+        max_tile_matrix=7,
+        data_format="image/jpeg",
+        notes=(
+            "Verified from the Mars Trek GetCapabilities document on "
+            f"{WMTS_VERIFIED_AT}. TileMatrix identifiers 0-7 are advertised "
+            "for this global color-shaded relief product, which uses JPEG "
+            "tiles instead of PNG."
+        ),
+    ),
+    CTX_JEZERO_PRELIM_ID: _config(
+        layer_identifier=CTX_JEZERO_PRELIM_ID,
+        max_tile_matrix=12,
+        notes=(
+            "Verified from the Mars Trek GetCapabilities document on "
+            f"{WMTS_VERIFIED_AT}. TileMatrix identifiers 0-12 are advertised "
+            "for this preliminary block-adjusted CTX mosaic, whose footprint "
+            "extends beyond the controlled Jezero product."
         ),
     ),
 }
@@ -240,10 +269,11 @@ def parse_wmts_capabilities(
     if resource_url is not None:
         template = resource_url.get("template")
         if template:
+            template = template.replace("/1.0.0//", "/1.0.0/")
             endpoint = template.split("/1.0.0/", 1)[0]
     if not endpoint:
         get_tile = root.find(
-            ".//wmts:Operation[@name='GetTile']//ows:Get", _NS
+            ".//ows:Operation[@name='GetTile']//ows:Get", _NS
         )
         if get_tile is not None:
             href = get_tile.get(
@@ -254,9 +284,10 @@ def parse_wmts_capabilities(
     if not endpoint:
         raise WMTSParseError("Unable to determine the WMTS endpoint.")
     if not template:
+        extension = "jpg" if data_format == "image/jpeg" else "png"
         template = (
             f"{endpoint}/1.0.0/{{Style}}/{{TileMatrixSet}}/"
-            "{TileMatrix}/{TileRow}/{TileCol}.png"
+            f"{{TileMatrix}}/{{TileRow}}/{{TileCol}}.{extension}"
         )
 
     return WMTSCapabilities(

@@ -2,21 +2,25 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import Feature from 'ol/Feature.js'
 import Map from 'ol/Map.js'
 import View from 'ol/View.js'
+import LineString from 'ol/geom/LineString.js'
+import Point from 'ol/geom/Point.js'
 import Polygon from 'ol/geom/Polygon.js'
 import TileLayer from 'ol/layer/Tile.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import Projection from 'ol/proj/Projection.js'
 import VectorSource from 'ol/source/Vector.js'
 import WMTS from 'ol/source/WMTS.js'
-import { Fill, Stroke, Style } from 'ol/style.js'
+import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style.js'
 import WMTSTileGrid from 'ol/tilegrid/WMTS.js'
+import { MARS_RADIUS_METERS } from '../../services/marsGeo.js'
 import 'ol/ol.css'
 
 export const MARS_PROJECTION_CODE = 'IAU2000:104905'
-export const MARS_RADIUS_METERS = 3396190
+export { MARS_RADIUS_METERS }
 
 const MARS_EXTENT = [-180, -90, 180, 90]
 const DEFAULT_CENTER = [77.43, 18.47]
+const EMPTY_ROUTE = []
 const FALLBACK_RESOLUTIONS = Array.from(
   { length: 18 },
   (_, zoom) => 0.703125 / 2 ** zoom,
@@ -37,6 +41,45 @@ const BBOX_STYLE = new Style({
   }),
   fill: new Fill({ color: 'rgba(232, 117, 50, 0.06)' }),
 })
+
+const ROUTE_LINE_STYLE = new Style({
+  stroke: new Stroke({
+    color: 'rgba(232, 117, 50, 0.95)',
+    width: 2.5,
+    lineDash: [8, 6],
+  }),
+})
+
+const ROUTE_POINT_STYLES = {
+  origin: new Style({
+    image: new CircleStyle({
+      radius: 6,
+      fill: new Fill({ color: '#3dd68c' }),
+      stroke: new Stroke({ color: '#e8edf4', width: 2 }),
+    }),
+  }),
+  destination: new Style({
+    image: new CircleStyle({
+      radius: 6,
+      fill: new Fill({ color: '#e0574a' }),
+      stroke: new Stroke({ color: '#e8edf4', width: 2 }),
+    }),
+  }),
+  waypoint: new Style({
+    image: new CircleStyle({
+      radius: 5,
+      fill: new Fill({ color: '#e87532' }),
+      stroke: new Stroke({ color: '#e8edf4', width: 1.5 }),
+    }),
+  }),
+}
+
+function routeStyle(feature) {
+  if (feature.get('role') === 'route-line') {
+    return ROUTE_LINE_STYLE
+  }
+  return ROUTE_POINT_STYLES[feature.get('role')] ?? ROUTE_POINT_STYLES.waypoint
+}
 
 function buildView(resolutions, boundingBox) {
   const usableResolutions =
@@ -73,14 +116,23 @@ function boundingBoxRing(boundingBox) {
 }
 
 const MarsMap = forwardRef(function MarsMap(
-  { layer, capabilities, onPointerMove, onStatusChange, onResolutionChange },
+  {
+    layer,
+    capabilities,
+    route = EMPTY_ROUTE,
+    viewExtent = null,
+    onPointerMove,
+    onStatusChange,
+    onResolutionChange,
+  },
   ref,
 ) {
   const targetRef = useRef(null)
   const mapRef = useRef(null)
   const tileLayerRef = useRef(null)
   const bboxFeatureRef = useRef(null)
-  const boundingBoxRef = useRef(null)
+  const routeLayerRef = useRef(null)
+  const focusBoundingBoxRef = useRef(null)
   const callbacksRef = useRef({
     onPointerMove,
     onStatusChange,
@@ -117,6 +169,14 @@ const MarsMap = forwardRef(function MarsMap(
     })
     map.addLayer(bboxLayer)
 
+    const routeLayer = new VectorLayer({
+      source: new VectorSource(),
+      style: routeStyle,
+      zIndex: 30,
+    })
+    routeLayerRef.current = routeLayer
+    map.addLayer(routeLayer)
+
     const emitResolution = () => {
       const resolution = map.getView().getResolution()
       if (resolution == null) {
@@ -152,6 +212,8 @@ const MarsMap = forwardRef(function MarsMap(
       mapRef.current = null
       tileLayerRef.current = null
       bboxFeatureRef.current = null
+      routeLayerRef.current = null
+      focusBoundingBoxRef.current = null
     }
   }, [])
 
@@ -168,7 +230,9 @@ const MarsMap = forwardRef(function MarsMap(
 
     const bboxFeature = bboxFeatureRef.current
     const boundingBox = layer?.bounding_box
-    boundingBoxRef.current = boundingBox ?? null
+    const focusBoundingBox =
+      viewExtent?.length === 4 ? viewExtent : (boundingBox ?? null)
+    focusBoundingBoxRef.current = focusBoundingBox
 
     if (bboxFeature) {
       bboxFeature.setGeometry(
@@ -227,7 +291,7 @@ const MarsMap = forwardRef(function MarsMap(
     tileLayerRef.current = tileLayer
     map.addLayer(tileLayer)
 
-    const view = buildView(resolutions, boundingBox)
+    const view = buildView(resolutions, focusBoundingBox)
     map.setView(view)
 
     const stats = { started: 0, settled: 0, loaded: 0, errors: 0 }
@@ -281,8 +345,8 @@ const MarsMap = forwardRef(function MarsMap(
 
     const frame = window.requestAnimationFrame(() => {
       map.updateSize()
-      if (boundingBox?.length === 4) {
-        view.fit(boundingBox, {
+      if (focusBoundingBox?.length === 4) {
+        view.fit(focusBoundingBox, {
           padding: [52, 52, 52, 52],
           duration: 0,
         })
@@ -305,7 +369,52 @@ const MarsMap = forwardRef(function MarsMap(
         warning: null,
       })
     }
-  }, [layer, capabilities])
+  }, [layer, capabilities, viewExtent])
+
+  useEffect(() => {
+    const routeLayer = routeLayerRef.current
+    if (!routeLayer) {
+      return
+    }
+
+    const source = routeLayer.getSource()
+    source.clear()
+
+    if (route.length === 0) {
+      return
+    }
+
+    const coordinates = route.map((point) => [
+      point.longitude,
+      point.latitude,
+    ])
+
+    if (coordinates.length > 1) {
+      source.addFeature(
+        new Feature({
+          geometry: new LineString(coordinates),
+          role: 'route-line',
+        }),
+      )
+    }
+
+    route.forEach((point, index) => {
+      const role =
+        index === 0
+          ? 'origin'
+          : index === route.length - 1
+            ? 'destination'
+            : 'waypoint'
+
+      source.addFeature(
+        new Feature({
+          geometry: new Point([point.longitude, point.latitude]),
+          role,
+          name: point.name,
+        }),
+      )
+    })
+  }, [route])
 
   useImperativeHandle(
     ref,
@@ -340,7 +449,7 @@ const MarsMap = forwardRef(function MarsMap(
       },
       fitToLayer() {
         const map = mapRef.current
-        const boundingBox = boundingBoxRef.current
+        const boundingBox = focusBoundingBoxRef.current
         if (!map || boundingBox?.length !== 4) {
           return
         }

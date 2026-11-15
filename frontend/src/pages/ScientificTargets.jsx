@@ -1,6 +1,7 @@
 import SimulationNotice from '../components/SimulationNotice.jsx'
 import ScientificTargetsPanel from '../components/dashboard/ScientificTargetsPanel.jsx'
-import { scientificTargets } from '../services/missionData.js'
+import { scientificTargets, missionActivity } from '../services/missionData.js'
+import MissionActivityPanel from '../components/dashboard/MissionActivityPanel.jsx'
 
 const STATUS_ORDER = ['Analyzed', 'In review', 'Pending']
 
@@ -8,6 +9,26 @@ const statusCounts = STATUS_ORDER.map((status) => ({
   status,
   count: scientificTargets.filter((target) => target.status === status).length,
 }))
+
+// Map scientific target IDs to their objects for quick lookup
+const targetMap = scientificTargets.reduce((map, target) => {
+  map[target.id] = target
+  return map
+}, {})
+
+// Enhance mission activity with scientific target relationships
+const enhancedMissionActivity = missionActivity.map((event) => {
+  const relatedTargets = []
+  // Check if the event detail or title mentions a scientific target ID
+  const targetIdMatch = event.detail.match(/JZ-\d{3}/) || event.title.match(/JZ-\d{3}/)
+  if (targetIdMatch) {
+    const target = targetMap[targetIdMatch[0]]
+    if (target) {
+      relatedTargets.push(target)
+    }
+  }
+  return { ...event, relatedTargets }
+})
 
 export default function ScientificTargets() {
   return (
@@ -39,6 +60,8 @@ export default function ScientificTargets() {
           </div>
         ))}
       </div>
+
+      <MissionActivityPanel enhancedActivity={enhancedMissionActivity} targetMap={targetMap} />
 
       <ScientificTargetsPanel />
     </div>

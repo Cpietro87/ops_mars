@@ -14,9 +14,11 @@ from app.schemas.mars import (
 )
 from app.services.mars_wmts import (
     CTX_JEZERO_ID,
+    CTX_JEZERO_PRELIM_ID,
     HIRISE_JEZERO_ID,
     MARS_EQUIRECTANGULAR_CRS,
     MARS_PROJECTION_CODE,
+    MOLA_GLOBAL_ID,
     WMTSParseError,
     WMTS_VERIFIED_AT,
     build_verified_capabilities,
@@ -85,6 +87,7 @@ _SOURCES: tuple[MarsDataSource, ...] = (
             "crism-mineral-maps",
             HIRISE_JEZERO_ID,
             CTX_JEZERO_ID,
+            CTX_JEZERO_PRELIM_ID,
         ],
     ),
     MarsDataSource(
@@ -109,7 +112,7 @@ _SOURCES: tuple[MarsDataSource, ...] = (
             "topography data."
         ),
         url="https://mars.nasa.gov/mgs/",
-        layer_ids=["mola-elevation"],
+        layer_ids=["mola-elevation", MOLA_GLOBAL_ID],
     ),
     MarsDataSource(
         id="nasa-pds",
@@ -133,7 +136,12 @@ _SOURCES: tuple[MarsDataSource, ...] = (
             "MARS OPS."
         ),
         url=_MARS_TREK_URL,
-        layer_ids=[HIRISE_JEZERO_ID, CTX_JEZERO_ID],
+        layer_ids=[
+            HIRISE_JEZERO_ID,
+            CTX_JEZERO_ID,
+            MOLA_GLOBAL_ID,
+            CTX_JEZERO_PRELIM_ID,
+        ],
     ),
 )
 
@@ -401,6 +409,119 @@ _LAYERS: tuple[MarsLayer, ...] = (
             product_created_date="2020-08-03",
         ),
         wmts=build_verified_capabilities(CTX_JEZERO_ID),
+    ),
+    MarsLayer(
+        id=MOLA_GLOBAL_ID,
+        name="MGS MOLA Color Shade, Global",
+        source="nasa-mgs",
+        mission="Mars Global Surveyor",
+        instrument="MOLA",
+        description=(
+            "Global color-shaded relief mosaic derived from Mars Orbiter Laser "
+            "Altimeter topography and delivered through NASA Mars Trek as a "
+            "WMTS layer."
+        ),
+        data_type="Elevation / shaded relief",
+        region="Mars (global)",
+        resolution=463.0,
+        resolution_unit="m/pixel",
+        projection=(
+            f"{MARS_PROJECTION_CODE} (Mars equirectangular, degrees)"
+        ),
+        bounding_box=[
+            -180.0,
+            -89.9991635,
+            179.9983271,
+            90.0,
+        ],
+        source_url=(
+            "https://trek.nasa.gov/tiles/Mars/EQ/"
+            f"{MOLA_GLOBAL_ID}/1.0.0/WMTSCapabilities.xml"
+        ),
+        acquisition_date=None,
+        processing_level=(
+            "Global color-shaded relief mosaic; the WMTS layer uses JPEG tiles."
+        ),
+        limitations=(
+            "The layer identifier and Mars Trek product name indicate a "
+            "463 m/pixel global mosaic. The WMTS document does not expose "
+            "acquisition dates or per-pixel provenance. This is a visualization "
+            "product, not a rover traverse surface model; verify the PDS "
+            "topography product before scientific use."
+        ),
+        attribution="NASA/MOLA Science Team · NASA Mars Trek",
+        status="available",
+        visualizable=True,
+        spatial_reference=MARS_SPATIAL_REFERENCE,
+        provenance=DataProvenance(
+            provider="NASA Mars Trek (NASA/JPL)",
+            source_url=_MARS_TREK_URL,
+            citation=(
+                f"MGS MOLA Color Shade, Global ({MOLA_GLOBAL_ID}). "
+                "NASA Mars Trek."
+            ),
+            attribution="NASA/MOLA Science Team",
+            verified=True,
+            verified_at=WMTS_VERIFIED_AT,
+            verification_notes=VERIFIED_TILE_ACCESS_NOTE,
+        ),
+        wmts=build_verified_capabilities(MOLA_GLOBAL_ID),
+    ),
+    MarsLayer(
+        id=CTX_JEZERO_PRELIM_ID,
+        name="MRO CTX, Jezero Preliminary Mosaic",
+        source="nasa-mro",
+        mission="Mars Reconnaissance Orbiter",
+        instrument="CTX",
+        description=(
+            "Preliminary block-adjusted CTX mosaic covering the broader Jezero "
+            "region and delivered through NASA Mars Trek as a WMTS layer."
+        ),
+        data_type="Visible optical imagery (orthomosaic)",
+        region="Jezero region, Mars",
+        resolution=None,
+        resolution_unit=None,
+        projection=(
+            f"{MARS_PROJECTION_CODE} (Mars equirectangular, degrees)"
+        ),
+        bounding_box=[
+            75.1537692,
+            15.9058484,
+            78.8717121,
+            19.4453003,
+        ],
+        source_url=(
+            "https://trek.nasa.gov/tiles/Mars/EQ/"
+            f"{CTX_JEZERO_PRELIM_ID}/1.0.0/WMTSCapabilities.xml"
+        ),
+        acquisition_date=None,
+        processing_level=(
+            "Preliminary block-adjusted CTX mosaic; not the controlled Mars "
+            "2020 Lander Vision System product."
+        ),
+        limitations=(
+            "The WMTS document does not state a per-pixel resolution or "
+            "acquisition dates for this preliminary mosaic. Its footprint is "
+            "larger than the controlled Jezero CTX product. Verify the "
+            "underlying PDS products before scientific use."
+        ),
+        attribution="NASA/JPL-Caltech/MSSS · NASA Mars Trek",
+        status="available",
+        visualizable=True,
+        spatial_reference=MARS_SPATIAL_REFERENCE,
+        provenance=DataProvenance(
+            provider="NASA Mars Trek (NASA/JPL)",
+            source_url=_MARS_TREK_URL,
+            citation=(
+                f"MRO CTX, Jezero Preliminary Mosaic ({CTX_JEZERO_PRELIM_ID}). "
+                "NASA Mars Trek."
+            ),
+            attribution="NASA/JPL-Caltech/MSSS",
+            verified=True,
+            verified_at=WMTS_VERIFIED_AT,
+            verification_notes=VERIFIED_TILE_ACCESS_NOTE,
+        ),
+        wmts=build_verified_capabilities(CTX_JEZERO_PRELIM_ID),
     ),
 )
 

@@ -1,4 +1,5 @@
 import { Ruler } from 'lucide-react'
+import { MARS_RADIUS_METERS } from '../../services/marsGeo.js'
 
 function formatDistance(meters) {
   if (!Number.isFinite(meters) || meters <= 0) {
@@ -21,7 +22,7 @@ function formatResolution(metersPerPixel) {
   return `${formatDistance(metersPerPixel)}/px`
 }
 
-export default function MapLegend({ layer, metersPerPixel }) {
+export default function MapLegend({ layer, metersPerPixel, showRoute = false }) {
   return (
     <section className="map-card" aria-label="Map legend">
       <header className="map-card__header">
@@ -32,9 +33,7 @@ export default function MapLegend({ layer, metersPerPixel }) {
       <ul className="map-legend">
         <li>
           <span className="map-legend__swatch map-legend__swatch--imagery" />
-          <span>
-            {layer ? `${layer.instrument} optical mosaic` : 'Optical mosaic'}
-          </span>
+          <span>{layer ? `${layer.instrument} basemap` : 'Orbital basemap'}</span>
         </li>
         <li>
           <span className="map-legend__swatch map-legend__swatch--frame" />
@@ -44,6 +43,18 @@ export default function MapLegend({ layer, metersPerPixel }) {
           <span className="map-legend__swatch map-legend__swatch--nodata" />
           <span>Transparent / no data</span>
         </li>
+        {showRoute && (
+          <>
+            <li>
+              <span className="map-legend__swatch map-legend__swatch--route" />
+              <span>Simulated route</span>
+            </li>
+            <li>
+              <span className="map-legend__swatch map-legend__swatch--waypoint" />
+              <span>Route waypoints</span>
+            </li>
+          </>
+        )}
       </ul>
 
       <div className="map-scale">
@@ -53,8 +64,8 @@ export default function MapLegend({ layer, metersPerPixel }) {
         </p>
         <p className="map-note">
           Current view scale: {formatResolution(metersPerPixel)}. Approximate,
-          derived from the WMTS matrix resolution using a Mars radius of
-          3,396,190 m.
+          derived from the WMTS matrix resolution using a Mars radius of{' '}
+          {MARS_RADIUS_METERS.toLocaleString('en-US')} m.
         </p>
       </div>
     </section>

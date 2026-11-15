@@ -6,6 +6,7 @@ import './styles/layout.css'
 import './styles/dashboard.css'
 import './styles/pages.css'
 import './styles/map.css'
+import './styles/aeolian.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

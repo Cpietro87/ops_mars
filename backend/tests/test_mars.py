@@ -4,7 +4,12 @@ from fastapi.testclient import TestClient
 from app.api.v1 import mars as mars_api
 from app.core.config import Settings
 from app.services.mars_data_service import MarsDataService, MarsUpstreamError
-from app.services.mars_wmts import CTX_JEZERO_ID, HIRISE_JEZERO_ID
+from app.services.mars_wmts import (
+    CTX_JEZERO_ID,
+    CTX_JEZERO_PRELIM_ID,
+    HIRISE_JEZERO_ID,
+    MOLA_GLOBAL_ID,
+)
 
 
 def test_list_sources(client: TestClient) -> None:
@@ -36,6 +41,18 @@ def test_list_sources(client: TestClient) -> None:
     )
     assert HIRISE_JEZERO_ID in trek["layer_ids"]
     assert CTX_JEZERO_ID in trek["layer_ids"]
+    assert MOLA_GLOBAL_ID in trek["layer_ids"]
+    assert CTX_JEZERO_PRELIM_ID in trek["layer_ids"]
+
+    mro = next(
+        source for source in payload["data"] if source["id"] == "nasa-mro"
+    )
+    assert CTX_JEZERO_PRELIM_ID in mro["layer_ids"]
+
+    mgs = next(
+        source for source in payload["data"] if source["id"] == "nasa-mgs"
+    )
+    assert MOLA_GLOBAL_ID in mgs["layer_ids"]
 
 
 def test_list_layers(client: TestClient) -> None:
@@ -45,7 +62,7 @@ def test_list_layers(client: TestClient) -> None:
     payload = response.json()
     assert payload["success"] is True
     assert isinstance(payload["data"], list)
-    assert len(payload["data"]) == 8
+    assert len(payload["data"]) == 10
 
     layer_ids = {layer["id"] for layer in payload["data"]}
     assert layer_ids == {
@@ -57,6 +74,8 @@ def test_list_layers(client: TestClient) -> None:
         "meda-environmental-monitoring",
         HIRISE_JEZERO_ID,
         CTX_JEZERO_ID,
+        MOLA_GLOBAL_ID,
+        CTX_JEZERO_PRELIM_ID,
     }
 
     for layer in payload["data"]:
@@ -72,6 +91,8 @@ def test_list_layers(client: TestClient) -> None:
     assert {layer["id"] for layer in visualizable} == {
         HIRISE_JEZERO_ID,
         CTX_JEZERO_ID,
+        MOLA_GLOBAL_ID,
+        CTX_JEZERO_PRELIM_ID,
     }
     assert all(layer["wmts"] is not None for layer in visualizable)
 
@@ -122,6 +143,41 @@ def test_get_verified_jezero_ctx_layer(client: TestClient) -> None:
     )
     assert layer["wmts"]["tile_matrix_set"] == "default028mm"
     assert len(layer["wmts"]["tile_matrices"]) == 14
+
+
+def test_get_verified_global_mola_layer(client: TestClient) -> None:
+    response = client.get(f"/api/v1/mars/layers/{MOLA_GLOBAL_ID}")
+
+    assert response.status_code == 200
+    layer = response.json()["data"]
+    assert layer["instrument"] == "MOLA"
+    assert layer["resolution"] == pytest.approx(463.0)
+    assert layer["bounding_box"] == pytest.approx(
+        [-180.0, -89.9991635, 179.9983271, 90.0]
+    )
+    assert layer["visualizable"] is True
+    assert layer["wmts"]["format"] == "image/jpeg"
+    assert layer["wmts"]["resource_url_template"].endswith(".jpg")
+    assert len(layer["wmts"]["tile_matrices"]) == 8
+
+
+def test_get_verified_jezero_preliminary_ctx_layer(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        f"/api/v1/mars/layers/{CTX_JEZERO_PRELIM_ID}"
+    )
+
+    assert response.status_code == 200
+    layer = response.json()["data"]
+    assert layer["instrument"] == "CTX"
+    assert layer["resolution"] is None
+    assert layer["bounding_box"] == pytest.approx(
+        [75.1537692, 15.9058484, 78.8717121, 19.4453003]
+    )
+    assert layer["visualizable"] is True
+    assert layer["wmts"]["format"] == "image/png"
+    assert len(layer["wmts"]["tile_matrices"]) == 13
 
 
 def test_get_unknown_layer_returns_standard_error(
@@ -280,6 +336,21 @@ def test_capabilities_are_independent_per_layer(
     assert capabilities["layer_identifier"] == CTX_JEZERO_ID
     assert len(capabilities["tile_matrices"]) == 14
     assert capabilities["tile_matrices"][-1]["id"] == "13"
+
+
+def test_capabilities_for_mola_use_jpeg_tiles(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        f"/api/v1/mars/layers/{MOLA_GLOBAL_ID}/capabilities"
+    )
+
+    assert response.status_code == 200
+    capabilities = response.json()["data"]
+    assert capabilities["format"] == "image/jpeg"
+    assert capabilities["resource_url_template"].endswith(".jpg")
+    assert len(capabilities["tile_matrices"]) == 8
+    assert capabilities["tile_matrices"][-1]["id"] == "7"
 
 
 def test_capabilities_unknown_layer_returns_404(
